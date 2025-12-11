@@ -1,0 +1,525 @@
+
+
+3.1을 **실제 동작 가능한 최소 단위**로 설계해보겠습니다.
+(구글 Gemini API 사용을 전제로, 지금 첨부하신 3주기 평가결과·편람·4주기 편람·정보공시를 모두 고려한 설계입니다.)
+
+---
+
+## 1. 3.1 전용 GitHub 구조 (최소 예시)
+
+우선 3.1만 돌려보는 구조를 추천합니다.
+
+```text
+univ-self-eval/
+├─ criteria/
+│  └─ 3.1-교원-확보-및-구성/
+│     ├─ 3.1-교원-확보-및-구성.md     # 메인 md
+│     └─ config.yml                   # 3.1용 설정 (선택, 있으면 좋음)
+├─ data/
+│  ├─ 3rd-cycle/
+│  │  └─ 3.1/
+│  │     └─ faculty_ratio_2021_2023.xlsx   # (선택) 3주기 정리본
+│  └─ 4th-cycle/
+│     └─ 3.1/
+│        └─ faculty_numbers_2021_2025.xlsx # 4주기용 원자료 (정보공시 기반)
+├─ scripts/
+│  ├─ update_3_1.py
+│  └─ prompts/
+│     ├─ 3.1_analysis.txt
+│     └─ 3.1_improvement.txt
+└─ .github/
+   └─ workflows/
+      └─ auto-update-3.1.yml
+```
+
+- **지금 단계**: 3.1만 이렇게 만들고, 나중에 3.2~3.6로 확장하면 됩니다.
+
+---
+
+## 2. 3.1용 데이터 엑셀 포맷 제안
+
+정보공시(2021·2022·2023)에서 전임·겸임교원 수, 교원법정정원은 이미 있으니,  
+이걸 하나의 엑셀로 모으는 것을 추천합니다.
+
+### 2.1. `data/4th-cycle/3.1/faculty_numbers_2021_2025.xlsx` 형식
+
+한 시트에 다음 컬럼:
+
+| 연도 | 기준구분 | 전임교원수A | 겸임교원수 | 교원법정정원B |
+|------|----------|-------------|------------|----------------|
+| 2021 | 학생정원 | 279         | 33         | 386            |
+| 2021 | 재학생   | 279         | 33         | 379            |
+| 2022 | 학생정원 | ...         | ...        | ...            |
+| ...  | ...      | ...         | ...        | ...            |
+
+- **기준구분**: `학생정원` / `재학생` 둘 다 넣습니다.
+- **전임/겸임교원수, 법정정원**: 정보공시(또는 내부 집계) 값.
+- 스크립트가 여기서 4주기 편람 기준대로 계산합니다.
+
+4주기 편람 식:
+
+- $A(\%) = \frac{\text{전임교원 수}}{\text{교원 법정정원}} \times 100$
+- $B(\%) = \frac{\text{겸임교원 수}}{\text{교원 법정정원}} \times 100$
+- 전임+겸임 확보율 = $A + \min(0.3 \times B, 4.0)$  
+- 학생정원 기준과 재학생 기준 **중 낮은 값** 사용
+
+---
+
+## 3. 3.1 md 템플릿 (실제 예시)
+
+`criteria/3.1-교원-확보-및-구성/3.1-교원-확보-및-구성.md` 예시입니다.  
+바로 복사해서 쓰시되, 파란/주황 영역만 나중에 채우시면 됩니다.
+
+```markdown
+
+
+```
+---
+criterion: "3.1"
+title: "교원 확보 및 구성"
+---
+
+# 3.1 교원 확보 및 구성
+
+> 3주기 자료는 <span style="color:#1f77b4;">파란색</span>,  
+> 4주기(신규 분석·지표)는 <span style="color:#ff7f0e;">주황색</span>으로 표기합니다.
+
+## 1. 평가 개요
+
+- 편람 기준
+  - 3주기: 「3.1 교원 확보」
+  - 4주기: 「3.1 교원 확보 및 구성」
+- 주요 점검사항(4주기 편람 요약)
+  - 전임교원 및 겸임교원 확보율의 최근 3년 평균이 기준값(64%) 충족 여부
+  - 교원 임용정책·교원 인사 규정에 따른 공개·공정·합리적 임용 절차 운영 여부
+  - 소속별·직제별·유형별 교원 구성의 적절성
+  - 교원 유형별 임용 목적에 따른 업무 부여의 적절성
+  - 강사 임용의 규정 준수 및 합리성
+
+## 2. 정량 지표
+
+### 2-1. 전임 및 겸임교원 확보율 추이 (2021–2025)
+
+> 4주기 편람의 산출식(A, B, A+0.3B)과  
+> 학생정원·재학생 기준 중 낮은 값을 반영합니다.
+
+#### (1) 연도별 전임교원 및 겸임교원 확보율(기준별)
+
+<!-- AUTO-GEN:3.1-DETAIL-RATIO-TABLE-START -->
+여기에 학생정원/재학생 기준을 모두 보여주는 상세 표를 자동 생성합니다.
+예: 연도 × (기준구분, 전임 A%, 겸임 B%, A+min(0.3B,4.0))
+<!-- AUTO-GEN:3.1-DETAIL-RATIO-TABLE-END -->
+
+#### (2) 평가에 사용하는 통합 확보율 (기준값과 비교)
+
+> 각 연도별로 학생정원/재학생 기준 중 낮은 값을 사용합니다.
+
+<table>
+  <thead>
+    <tr>
+      <th>연도</th>
+      <th>전임+겸임 확보율(%)<br>최종 사용값</th>
+      <th>기준값 64% 대비</th>
+      <th>비고(기준구분)</th>
+    </tr>
+  </thead>
+  <tbody>
+    <!-- 2021–2023: 3주기 구간 (정보공시·3주기 보고서 기반) -->
+    <!-- AUTO-GEN:3.1-RATIO-3RD-START -->
+    <tr>
+      <td><span style="color:#1f77b4;">2021</span></td>
+      <td><span style="color:#1f77b4;">(예: 66.1)</span></td>
+      <td><span style="color:#1f77b4;">기준값 충족</span></td>
+      <td><span style="color:#1f77b4;">(예: 학생정원 기준)</span></td>
+    </tr>
+    <tr>… 2022 …</tr>
+    <tr>… 2023 …</tr>
+    <!-- AUTO-GEN:3.1-RATIO-3RD-END -->
+
+    <!-- 2024–2025: 4주기 신규 구간 (정보공시 최신자료 반영) -->
+    <!-- AUTO-GEN:3.1-RATIO-4TH-START -->
+    <tr>
+      <td><span style="color:#ff7f0e;">2024</span></td>
+      <td><span style="color:#ff7f0e;">(자동 계산)</span></td>
+      <td><span style="color:#ff7f0e;">(충족/미충족)</span></td>
+      <td><span style="color:#ff7f0e;">(학생정원/재학생 중 낮은 값 기준)</span></td>
+    </tr>
+    <tr>
+      <td><span style="color:#ff7f0e;">2025</span></td>
+      <td><span style="color:#ff7f0e;">(자동 계산)</span></td>
+      <td><span style="color:#ff7f0e;">(충족/미충족)</span></td>
+      <td><span style="color:#ff7f0e;">(학생정원/재학생 중 낮은 값 기준)</span></td>
+    </tr>
+    <!-- AUTO-GEN:3.1-RATIO-4TH-END -->
+  </tbody>
+</table>
+
+※ 내부 관리용으로는 2021–2025 전체를 보되, 실제 4주기 평가는 최근 3년(예: 2023–2025)을 기준으로 합니다.
+
+## 3. 정성 분석
+
+### 3-1. 3주기 평가결과 요약 (외부 평가의견)
+
+<span style="color:#1f77b4;">
+
+- 전임교원 확보율의 최근 3년간 평균은 66.1%로 기준값 64%를 충족함  
+- 교원 임용은 '교원인사규정'에 따라 1차 기초심사, 2차 전공심사, 3차 대면심사의 절차에 의해 이루어지며, 1차와 2차 심사의 심사위원 중 3분의 1을 외부 심사위원으로 위촉하고 있음  
+- 교원 임용을 위해 온라인에서 15일 이상 공고하며, 교원인사위원회에서 2차와 3차 심사대상자 심의, 면접대상자 심의, 법인제청대상자 심의 등의 절차로 진행하고 관련 자료를 확보하고 있음  
+- 전체 교원 531명 중 전임교원 비율은 38.04%, 비전임교원 비율은 61.96%이며, 전임교원 202명 중 정년트랙 전임교원 비율은 56.93%, 비정년트랙 전임교원 비율은 43.07%로 학과별 특성에 따라 분포하고 있음  
+- 강사는 '강사에 관한 규정'에 따라 공개임용으로 이루어지고 있으며, 교원인사위원회에서 강사 초빙 계획 심의, 1차 기초심사, 2차 전공심사를 거친 후 총장의 승인을 통해 임용하고 있음  
+
+</span>
+
+### 3-2. 자체진단(3주기 보고서 내용 요약)
+
+<span style="color:#1f77b4;">
+여기에 「3주기 - 대학자체진단평가보고서_ 교원 및 직원」 중 3.1 관련 자체진단 내용을 요약·인용합니다.
+(임용 절차, 공개채용, 학과별 교원 구성 등)
+</span>
+
+### 3-3. 4주기 관점의 추가 분석
+
+<!-- AUTO-GEN:3.1-ANALYSIS-START -->
+<span style="color:#ff7f0e;">
+여기에 Gemini API를 이용해 2021–2025 지표와 4주기 편람(3.1)의 주요 점검사항을 반영한
+분석 문단(예: 6~8문장)을 자동 삽입합니다.
+</span>
+<!-- AUTO-GEN:3.1-ANALYSIS-END -->
+
+## 4. 강점 및 개선과제
+
+### 4-1. 강점 (3주기 평가 + 자체진단 기반)
+
+<span style="color:#1f77b4;">
+3주기 시점에 도출된 강점을 요약·정리합니다.
+(예: 기준값을 상회하는 전임교원 확보율, 투명한 교원 임용 절차 등)
+</span>
+
+### 4-2. 4주기 기준의 개선과제 및 실행계획
+
+<!-- AUTO-GEN:3.1-IMPROVEMENT-START -->
+<span style="color:#ff7f0e;">
+여기에 4주기 편람의 주요 점검사항(특히 겸임교원 활용, 교원 유형별 임용목적, 학과별 구성 적절성)을
+반영한 개선과제와 실행계획을 자동 생성하여 삽입합니다.
+</span>
+<!-- AUTO-GEN:3.1-IMPROVEMENT-END -->
+
+
+- 위에서 **파란 부분**은 지금 갖고 계신 3주기 평가결과보고서·자체진단에서 그대로 가져다 붙이시면 됩니다.
+- **주황 AUTO-GEN 블록**은 스크립트 + Gemini로 채우는 영역입니다.
+
+---
+
+## 4. 3.1 전용 업데이트 스크립트 개요 (`scripts/update_3_1.py`)
+
+Python + `google-generativeai` 기준의 간단한 버전입니다.  
+(실제 사용 시에는 파일 경로·모델 이름만 조정하시면 됩니다.)
+
+### 4.1. 설치
+
+워크플로우에서 이미 설치하겠지만, 로컬에서는:
+
+```bash
+pip install pandas openpyxl google-generativeai
+```
+
+### 4.2. 스크립트 예시
+
+```python
+import os
+from pathlib import Path
+
+import pandas as pd
+from google import generativeai as genai
+
+# --- 기본 설정 ---
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+DATA_PATH = REPO_ROOT / "data" / "4th-cycle" / "3.1" / "faculty_numbers_2021_2025.xlsx"
+MD_PATH = REPO_ROOT / "criteria" / "3.1-교원-확보-및-구성" / "3.1-교원-확보-및-구성.md"
+
+genai.configure(api_key=os.environ["GEMINI_API_KEY"])
+MODEL_NAME = "gemini-2.0-flash"  # 필요시 다른 모델로 교체
+
+
+# --- 유틸 함수 ---
+
+def calc_ratios(df: pd.DataFrame):
+    """
+    엑셀에서 읽은 원자료(df)로부터
+    기준구분(학생정원/재학생)별 A, B, 통합확보율을 계산하고,
+    연도별 '최종 사용값'(두 기준 중 낮은 값)을 반환.
+    """
+    df = df.copy()
+    df["A_fulltime_pct"] = df["전임교원수A"] / df["교원법정정원B"] * 100
+    df["B_adjunct_pct"] = df["겸임교원수"] / df["교원법정정원B"] * 100
+    df["combined_pct"] = df["A_fulltime_pct"] + (0.3 * df["B_adjunct_pct"])
+    df["combined_pct"] = df["combined_pct"].clip(upper=4.0 + df["A_fulltime_pct"])  # min(0.3B, 4.0) 반영
+
+    # 연도 × 기준구분 테이블
+    detail = df.sort_values(["연도", "기준구분"])
+
+    # 연도별 최종 사용값: 기준구분별 combined_pct 중 최솟값
+    final = (
+        df.loc[:, ["연도", "기준구분", "combined_pct"]]
+        .sort_values(["연도", "combined_pct"])
+        .groupby("연도")
+        .first()
+        .reset_index()
+    )
+    final = final.rename(columns={"combined_pct": "final_combined_pct",
+                                  "기준구분": "final_basis"})
+    return detail, final
+
+
+def replace_between_markers(text: str, start_marker: str, end_marker: str, new_block: str) -> str:
+    start_idx = text.find(start_marker)
+    end_idx = text.find(end_marker)
+    if start_idx == -1 or end_idx == -1:
+        return text
+    start_idx += len(start_marker)
+    return text[:start_idx] + "\n" + new_block.strip() + "\n" + text[end_idx:]
+
+
+def call_gemini(prompt: str) -> str:
+    model = genai.GenerativeModel(MODEL_NAME)
+    resp = model.generate_content(prompt)
+    return resp.text
+
+
+# --- 메인 로직 ---
+
+def update_tables():
+    df = pd.read_excel(DATA_PATH)
+
+    detail, final = calc_ratios(df)
+
+    # (1) 상세표 HTML 생성 (학생정원/재학생 모두)
+    rows = []
+    for _, row in detail.iterrows():
+        year = int(row["연도"])
+        basis = row["기준구분"]
+        a = row["A_fulltime_pct"]
+        b = row["B_adjunct_pct"]
+        c = row["combined_pct"]
+        rows.append(
+            f"""    
+      {year}
+      {basis}
+      {a:.2f}
+      {b:.2f}
+      {c:.2f}
+    """
+        )
+    detail_table = (
+        "\n"
+        "  \n"
+        "    연도기준구분전임 A(%)겸임 B(%)A+min(0.3B,4.0)(%)\n"
+        "  \n"
+        "  \n" + "\n".join(rows) + "\n  \n"
+    )
+
+    # (2) 3주기(2021–2023) / 4주기(2024–2025) 최종 값 표 행 생성
+    rows_3rd = []
+    rows_4th = []
+    for _, row in final.iterrows():
+        year = int(row["연도"])
+        val = row["final_combined_pct"]
+        basis = row["final_basis"]
+        color = "#1f77b4" if year 
+      {year}
+      {val:.2f}
+      {'기준값 충족' if val >= 64 else '기준값 미충족'}
+      {basis} 기준 사용
+    """
+        )
+
+    return detail_table, "\n".join(rows_3rd), "\n".join(rows_4th)
+
+
+def update_text_blocks(detail_table: str, rows_3rd: str, rows_4th: str):
+    text = MD_PATH.read_text(encoding="utf-8")
+
+    # 상세표
+    text = replace_between_markers(
+        text,
+        "",
+        "",
+        detail_table,
+    )
+
+    # 3주기 행
+    text = replace_between_markers(
+        text,
+        "",
+        "",
+        rows_3rd,
+    )
+
+    # 4주기 행
+    text = replace_between_markers(
+        text,
+        "",
+        "",
+        rows_4th,
+    )
+
+    MD_PATH.write_text(text, encoding="utf-8")
+
+
+def update_analysis_and_improvement(final_metrics: pd.DataFrame):
+    """
+    final_metrics: 연도별 final_combined_pct, final_basis를 담은 DataFrame
+    실제로는 calc_ratios에서 나온 final을 인자로 넘기면 됩니다.
+    여기선 간단화를 위해 다시 읽어옵니다.
+    """
+    # 1) 3주기 평가요약(파란 텍스트)은 이미 md에 들어 있으니,
+    #    여기서는 prompt에 사용할 텍스트만 추출(혹은 별도 파일로 관리)한다고 가정
+    # 지금은 간단히 '...'로 둡니다.
+    cycle3_summary = "3주기 평가결과 요약 텍스트 (md에서 발췌)"
+
+    # 2) 4주기 편람 3.1 관련 주요 점검사항 발췌를 별도 txt 파일로 관리
+    handbook_path = REPO_ROOT / "scripts" / "prompts" / "3.1_analysis.txt"
+    handbook_excerpt = handbook_path.read_text(encoding="utf-8") if handbook_path.exists() else ""
+
+    metrics_dict = final_metrics.set_index("연도")["final_combined_pct"].to_dict()
+
+    prompt = f"""
+당신은 한국 대학기관평가인증 보고서 작성 전문가입니다.
+
+[3주기 평가결과 요약]
+{cycle3_summary}
+
+[4주기 편람 3.1 주요 점검사항]
+{handbook_excerpt}
+
+[연도별 전임+겸임교원 확보율(최종 사용값, %)]
+{metrics_dict}
+
+위 정보를 바탕으로,
+1) 2021~2023년(3주기) 흐름과 2024~2025년(4주기) 변화를 연속적으로 설명하고,
+2) 기준값(64%) 충족 여부 및 추세를 평가하며,
+3) 6~8문장 분량의 분석 문단을 작성하세요.
+4) 한국어, 존댓말, 기관평가인증 보고서 스타일로 작성하세요.
+"""
+
+    analysis_text = call_gemini(prompt)
+    wrapped_analysis = f'\n{analysis_text}\n'
+
+    # 개선과제도 유사하게 프롬프트 구성
+    improvement_prompt = f"""
+당신은 한국 대학기관평가인증 보고서 작성 전문가입니다.
+
+[연도별 전임+겸임교원 확보율(최종값, %)]
+{metrics_dict}
+
+4주기 편람 3.1의 평가관점(겸임교원 활용, 교원 구성 적정성, 임용정책 등)을 반영하여,
+향후 3~5년간의 교원 확보 및 구성 관련 개선과제와 실행계획을
+5~7문장 분량으로 기술하세요.
+"""
+    improvement_text = call_gemini(improvement_prompt)
+    wrapped_improvement = f'\n{improvement_text}\n'
+
+    text = MD_PATH.read_text(encoding="utf-8")
+    text = replace_between_markers(
+        text,
+        "",
+        "",
+        wrapped_analysis,
+    )
+    text = replace_between_markers(
+        text,
+        "",
+        "",
+        wrapped_improvement,
+    )
+    MD_PATH.write_text(text, encoding="utf-8")
+
+
+def main():
+    df = pd.read_excel(DATA_PATH)
+    detail, final = calc_ratios(df)
+    detail_table, rows_3rd, rows_4th = update_tables()
+    update_text_blocks(detail_table, rows_3rd, rows_4th)
+    update_analysis_and_improvement(final)
+
+
+if __name__ == "__main__":
+    main()
+```
+
+- 지금 코드는 **개념 예시**입니다. 실제로 적용하실 때는:
+  - 엑셀 컬럼명(연도·기준구분 등)이 정확히 맞는지,
+  - 3주기/4주기 연도 구분(2021~23 vs 24~25)이 맞는지,
+  - 편람 발췌 텍스트 파일(`3.1_analysis.txt`)을 어떻게 작성할지  
+  등을 한 번씩 조정해주셔야 합니다.
+
+---
+
+## 5. GitHub Actions: 3.1만 자동 갱신하는 워크플로우
+
+`.github/workflows/auto-update-3.1.yml`:
+
+```yaml
+name: Auto Update 3.1
+
+on:
+  push:
+    paths:
+      - 'data/4th-cycle/3.1/**'
+  workflow_dispatch:
+
+jobs:
+  update-3-1:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install deps
+        run: |
+          pip install pandas openpyxl google-generativeai
+
+      - name: Run 3.1 updater
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          python scripts/update_3_1.py
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add criteria/3.1-교원-확보-및-구성/3.1-교원-확보-및-구성.md
+          if git diff --cached --quiet; then
+            echo "No changes."
+          else
+            git commit -m "chore: auto-update 3.1 from data"
+            git push
+          fi
+```
+
+---
+
+## 6. 다음 단계 제안
+
+1. **지금 하실 것**
+   - 레포에 위 구조대로 디렉터리와 md 템플릿을 만들어 두고,
+   - `faculty_numbers_2021_2025.xlsx`를 실제 값으로 채워 넣어보시면 좋습니다.
+     - 최소한 2021–2023(정보공시) + 2024(가능하면)까지
+   - 3.1 md에 3주기 평가결과(제가 위에 파란색으로 넣어둔 내용)를 그대로 붙여 넣기
+
+2. 그런 다음:
+   - “엑셀을 이런 형식으로 채워 넣었다” 정도만 알려주시면  
+   - 그 형식에 맞게 위 스크립트를 조금 더 정확히 다듬어 드릴 수 있습니다.  
+   - 원하시면 `3.1_analysis.txt`용 프롬프트 샘플도 만들어 드리겠습니다.
+
+이 정도면 3.1은 **데이터만 넣으면 자동으로 표·분석 문단이 갱신되는 틀**이 잡힙니다.  
+이걸 기준으로 3.2~3.6도 같은 패턴으로 확장하면 됩니다.
