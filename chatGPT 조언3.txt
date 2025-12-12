@@ -1,0 +1,320 @@
+
+
+지금까지 설계한 3.1 구조를 그대로 쓰되, **“PDF 업로드 → 데이터 자동 추출 → 파일 저장 → md 자동 반영”**까지 한 번에 도는 파이프라인을 만들고 싶어요.
+
+아래는 그걸 구현하는 구체적인 방식입니다.
+
+---
+
+## 1. 전체 흐름 정리
+
+3.1에 한해서는 다음 순서로 돌아가게 만들면 됩니다.
+
+1. `2021 정보공시.pdf`, `2022 정보공시.pdf`, `2023 정보공시.pdf` 같은 원본 PDF를  
+   GitHub 레포의 `data/raw/3.1/` 폴더에 업로드(커밋/푸시)
+2. GitHub Actions가 실행
+3. `extract_3_1_from_pdf.py`가:
+   - PDF에서 **전임교원수, 겸임교원수, 교원 법정정원(학생정원/재학생 기준)**을 추출
+   - 이를 표준 형태의 CSV/엑셀(`faculty_numbers_2021_2025.csv`)로 저장
+4. `update_3_1.py`가:
+   - 이 CSV를 읽어 4주기 편람 방식으로 **전임+겸임 확보율 계산**
+   - 3.1 md 파일의 **AUTO-GEN 블록(표 + 분석/개선 문단)**을 갱신  
+   - 분석/개선 문단은 **Gemini API**로 생성
+5. GitHub Actions가 변경된 md를 자동 커밋/푸시
+
+---
+
+## 2. 레포 구조(3.1 전용)
+
+```text
+univ-self-eval/
+├─ criteria/
+│  └─ 3.1-교원-확보-및-구성/
+│     └─ 3.1-교원-확보-및-구성.md
+├─ data/
+│  ├─ raw/
+│  │  └─ 3.1/
+│  │     ├─ 2021-정보공시.pdf
+│  │     ├─ 2022-정보공시.pdf
+│  │     └─ 2023-정보공시.pdf
+│  └─ 4th-cycle/
+│     └─ 3.1/
+│        └─ faculty_numbers_2021_2025.csv   # 추출·정제 결과
+├─ scripts/
+│  ├─ extract_3_1_from_pdf.py
+│  ├─ update_3_1.py
+│  └─ prompts/
+│     ├─ 3.1_analysis.txt
+│     └─ 3.1_improvement.txt
+└─ .github/
+   └─ workflows/
+      └─ auto-3.1.yml
+```
+
+---
+
+## 3. 1단계: PDF → 표준 CSV 자동 추출
+
+### 3.1. 어떤 데이터가 필요하나?
+
+4주기 3.1 계산에 필요한 최소 항목:
+
+- 연도
+- 기준구분: `학생정원`, `재학생`
+- 전임교원수 A
+- 겸임교원수
+- 교원 법정정원 B
+
+최종 CSV(`faculty_numbers_2021_2025.csv`)는 이런 형태로 저장합니다.
+
+```csv
+연도,기준구분,전임교원수A,겸임교원수,교원법정정원B
+2021,학생정원,279,33,386
+2021,재학생,279,33,379
+2022,학생정원,...
+...
+```
+
+### 3.2. PDF에서 표 뽑기(예: pdfplumber 사용)
+
+`scripts/extract_3_1_from_pdf.py` 개략 예시입니다.
+
+```python
+import re
+from pathlib import Path
+
+import pdfplumber
+import pandas as pd
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+RAW_DIR = REPO_ROOT / "data" / "raw" / "3.1"
+OUT_CSV = REPO_ROOT / "data" / "4th-cycle" / "3.1" / "faculty_numbers_2021_2025.csv"
+
+def extract_year_from_filename(path: Path) -> int:
+    # 예: "2021 정보공시.pdf", "2022_정보공시.pdf" 등에서 연도 추출
+    m = re.search(r"20\d{2}", path.name)
+    if not m:
+        raise ValueError(f"파일명에서 연도를 찾을 수 없습니다: {path.name}")
+    return int(m.group())
+
+def find_target_table(page) -> list[list[str]]:
+    """
+    각 정보공시 PDF에서 '전임교원 1인당 학생 수 및 전임교원 확보율' 표가 있는
+    페이지를 찾는 방식 (예시).
+    실제로는 페이지 텍스트를 확인하면서 위치를 맞춰야 합니다.
+    """
+    text = page.extract_text() or ""
+    # 키워드는 실제 PDF 내용 보고 조정: 예) "전임교원 1인당 학생 수 및 전임교원 확보율"
+    if "전임교원 1인당 학생 수" in text and "전임교원 확보율" in text:
+        tables = page.extract_tables()
+        if tables:
+            return tables[0]  # 첫 번째 테이블을 사용 (필요하면 인덱스 조정)
+    return None
+
+def parse_table_to_rows(year: int, table: list[list[str]]) -> list[dict]:
+    """
+    표 구조는 실제 PDF 보고 맞춰야 합니다.
+    여기서는 예시로, 행 중에서 '전체' 행을 찾는다고 가정합니다.
+    """
+    header = table[0]
+    rows = table[1:]
+    result = []
+
+    # 열 인덱스 찾기 (예시)
+    # 실제 PDF에서의 열 제목을 확인한 뒤 아래 문자열을 조정해야 합니다.
+    col_map = {}
+    for idx, col in enumerate(header):
+        if "전임교원" in str(col):
+            col_map["전임교원수A"] = idx
+        elif "겸임교원" in str(col):
+            col_map["겸임교원수"] = idx
+        elif "법정정원" in str(col) and "학생정원" in str(col):
+            col_map["법정정원_학생정원"] = idx
+        elif "법정정원" in str(col) and "재학생" in str(col):
+            col_map["법정정원_재학생"] = idx
+
+    for row in rows:
+        # '전체' 행만 사용한다고 가정 (실제 표 구조에 맞게 조건 수정)
+        if row[0] and "전체" in row[0]:
+            # 문자열에서 숫자만 추출
+            def to_int(x):
+                return int(re.sub(r"[^\d]", "", x)) if x and re.search(r"\d", x) else None
+
+            a = to_int(row[col_map["전임교원수A"]])
+            adjunct = to_int(row[col_map["겸임교원수"]])
+            b_student = to_int(row[col_map["법정정원_학생정원"]])
+            b_enrolled = to_int(row[col_map["법정정원_재학생"]])
+
+            if a and b_student:
+                result.append({
+                    "연도": year,
+                    "기준구분": "학생정원",
+                    "전임교원수A": a,
+                    "겸임교원수": adjunct,
+                    "교원법정정원B": b_student,
+                })
+            if a and b_enrolled:
+                result.append({
+                    "연도": year,
+                    "기준구분": "재학생",
+                    "전임교원수A": a,
+                    "겸임교원수": adjunct,
+                    "교원법정정원B": b_enrolled,
+                })
+            break
+
+    return result
+
+def main():
+    OUT_CSV.parent.mkdir(parents=True, exist_ok=True)
+
+    all_rows = []
+    for pdf_path in RAW_DIR.glob("*.pdf"):
+        year = extract_year_from_filename(pdf_path)
+        with pdf_path.open("rb") as f, pdfplumber.open(f) as pdf:
+            target_table = None
+            for page in pdf.pages:
+                table = find_target_table(page)
+                if table:
+                    target_table = table
+                    break
+            if target_table is None:
+                print(f"[WARN] {pdf_path.name}: 대상 표를 찾지 못했습니다.")
+                continue
+
+            rows = parse_table_to_rows(year, target_table)
+            all_rows.extend(rows)
+
+    if not all_rows:
+        print("추출된 데이터가 없습니다.")
+        return
+
+    df = pd.DataFrame(all_rows)
+    df.to_csv(OUT_CSV, index=False, encoding="utf-8-sig")
+    print(f"저장 완료: {OUT_CSV}")
+
+if __name__ == "__main__":
+    main()
+```
+
+※ 위 코드는 **예시**입니다. 실제 PDF 안의 표 구조/열 이름에 따라:
+
+- `find_target_table()` 안의 검색 키워드  
+- `parse_table_to_rows()`에서 헤더/열 이름 인식  
+등을 PDF를 열어보면서 한 번씩 맞춰줘야 합니다.
+
+---
+
+## 4. 2단계: CSV → md 자동 반영 (Gemini 포함)
+
+이 부분은 앞에서 설명드린 `update_3_1.py` 흐름 그대로 쓰시면 됩니다.
+
+구조:
+
+1. `faculty_numbers_2021_2025.csv` 읽기
+2. 4주기 방식으로 전임/겸임 확보율 계산
+3. 3.1 md의 AUTO-GEN 표 구간/분석 구간 교체
+4. 분석/개선 문단은 Gemini API로 생성
+
+Gemini 연동은 이런 식으로:
+
+```python
+from google import generativeai as genai
+
+genai.configure(api_key=os.environ["GEMINI_API_KEY"])
+MODEL_NAME = "gemini-2.0-flash"
+
+def call_gemini(prompt: str) -> str:
+    model = genai.GenerativeModel(MODEL_NAME)
+    resp = model.generate_content(prompt)
+    return resp.text
+```
+
+이걸 이용해:
+
+- `` ~ `END`
+- `` ~ `END`
+
+구간에 들어갈 텍스트를 만들면 됩니다. (프롬프트는 앞에서 제안한 형태대로.)
+
+---
+
+## 5. GitHub Actions: PDF만 올려도 전부 자동 실행
+
+`.github/workflows/auto-3.1.yml`:
+
+```yaml
+name: Auto 3.1 From PDF
+
+on:
+  push:
+    paths:
+      - 'data/raw/3.1/**'
+  workflow_dispatch:
+
+jobs:
+  auto-3-1:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install deps
+        run: |
+          pip install pandas openpyxl pdfplumber google-generativeai
+
+      - name: Extract 3.1 data from PDFs
+        run: |
+          python scripts/extract_3_1_from_pdf.py
+
+      - name: Update 3.1 markdown
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          python scripts/update_3_1.py
+
+      - name: Commit and push updated md
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add criteria/3.1-교원-확보-및-구성/3.1-교원-확보-및-구성.md data/4th-cycle/3.1/faculty_numbers_2021_2025.csv
+          if git diff --cached --quiet; then
+            echo "No changes."
+          else
+            git commit -m "chore: auto-update 3.1 from PDFs"
+            git push
+          fi
+```
+
+이제는:
+
+- `data/raw/3.1/2021 정보공시.pdf` 같은 파일만 레포에 넣고 푸시하면,
+  - PDF → CSV 추출,
+  - CSV → md 반영,
+  - Gemini 분석까지 한 번에 돌아갑니다.
+
+---
+
+## 6. 실제로 하실 작업 순서 (3.1 완성까지)
+
+1. 레포에 위 구조대로 디렉터리 만들기
+2. 3.1 md 템플릿을 만들어 두고,  
+   - 3주기 평가결과(용인대 보고서 3.1 부분)는 파란색 텍스트로 그대로 붙여 넣기
+3. `data/raw/3.1/`에 2021·2022·2023 정보공시 pdf 넣기
+4. `extract_3_1_from_pdf.py` 안의
+   - `find_target_table()` 키워드,
+   - `parse_table_to_rows()` 헤더 인식 로직  
+   을 실제 PDF를 보면서 1~2번 수정
+5. GitHub Actions(`auto-3.1.yml`) 추가
+6. 테스트용으로 브랜치에서 한 번 push →  
+   - CSV가 만들어지고  
+   - md가 자동으로 갱신되는지 확인
+
+이 정도까지 되면, 3.1은 “PDF만 올리면 3·4주기 연속 구조에 맞게 자동 반영되는 반자동 시스템”이 완성됩니다.

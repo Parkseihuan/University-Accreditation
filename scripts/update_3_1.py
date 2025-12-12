@@ -5,7 +5,7 @@ import argparse
 # from google import generativeai as genai # Commented out as we don't have API key yet
 
 # --- Configuration ---
-DATA_PATH = "data/4th-cycle/3.1/faculty_numbers_2021_2025.xlsx"
+DATA_PATH = "data/4th-cycle/3.1/faculty_numbers_2021_2025.csv"
 MD_PATH = "criteria/3.1-교원-확보-및-구성/3.1-교원-확보-및-구성.md"
 
 # --- Utils ---
@@ -61,7 +61,7 @@ def update_tables():
         print(f"Data file not found: {DATA_PATH}")
         return "", "", ""
         
-    df = pd.read_excel(DATA_PATH)
+    df = pd.read_csv(DATA_PATH)
     detail, final = calc_ratios(df)
 
     # (1) Detail Table HTML
